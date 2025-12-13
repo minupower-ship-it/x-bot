@@ -1,6 +1,8 @@
 import tweepy
 import os
 import time
+from flask import Flask
+import threading
 
 # --- 환경변수에서 API 키 불러오기 ---
 API_KEY = os.environ["API_KEY"]
@@ -19,28 +21,40 @@ MESSAGE = (
 auth = tweepy.OAuth1UserHandler(API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
 api = tweepy.API(auth)
 
-# 내 계정 ID 확인 (v1.1에서는 verify_credentials 사용)
 MY_ID = api.verify_credentials().id_str
-replied_users = set()  # 유저당 1회만 전송
+replied_users = set()
 
 print("봇 실행중...")
 
-while True:
-    try:
-        # 최근 20개 DM 가져오기
-        dms = api.get_direct_messages(count=20)
-        for dm in reversed(dms):
-            sender = dm.message_create['sender_id']
+# --- DM 자동응답 루프 ---
+def run_bot():
+    while True:
+        try:
+            dms = api.get_direct_messages(count=20)
+            for dm in reversed(dms):
+                sender = dm.message_create['sender_id']
+                if sender != MY_ID and sender not in replied_users:
+                    try:
+                        api.send_direct_message(recipient_id=sender, text=MESSAGE)
+                        replied_users.add(sender)
+                        print("DM 전송 완료:", sender)
+                    except Exception as e:
+                        print("DM 전송 실패:", e)
+            time.sleep(10)
+        except Exception as e:
+            print("DM 가져오기 실패:", e)
+            time.sleep(30)
 
-            # 본인 제외 + 1회만 전송
-            if sender != MY_ID and sender not in replied_users:
-                try:
-                    api.send_direct_message(recipient_id=sender, text=MESSAGE)
-                    replied_users.add(sender)
-                    print("DM 전송 완료:", sender)
-                except Exception as e:
-                    print("DM 전송 실패:", e)
-        time.sleep(10)
-    except Exception as e:
-        print("DM 가져오기 실패:", e)
-        time.sleep(30)
+# --- Flask 서버 (포트 열기용) ---
+app = Flask(__name__)
+
+@app.route("/")
+def index():
+    return "Bot is running!"
+
+# --- 백그라운드 스레드로 봇 실행 ---
+threading.Thread(target=run_bot).start()
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
