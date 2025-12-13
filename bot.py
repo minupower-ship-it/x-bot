@@ -19,8 +19,8 @@ MESSAGE = (
 auth = tweepy.OAuth1UserHandler(API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
 api = tweepy.API(auth)
 
-# 내 계정 ID 확인
-MY_ID = api.me().id_str
+# 내 계정 ID 확인 (v1.1에서는 verify_credentials 사용)
+MY_ID = api.verify_credentials().id_str
 replied_users = set()  # 유저당 1회만 전송
 
 print("봇 실행중...")
