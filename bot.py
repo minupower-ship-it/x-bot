@@ -45,7 +45,7 @@ def run_bot():
             print("DM 가져오기 실패:", e)
             time.sleep(30)
 
-# --- Flask 서버 (포트 열기용) ---
+# --- Flask 서버 (Render Web Service용 포트 바인딩) ---
 app = Flask(__name__)
 
 @app.route("/")
@@ -56,5 +56,7 @@ def index():
 threading.Thread(target=run_bot).start()
 
 if __name__ == "__main__":
+    # Render가 제공하는 PORT 환경변수 사용
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
