@@ -130,7 +130,7 @@ def main():
                     f"{API_URL}/sendMessage",
                     json={
                         "chat_id": chat_id,
-                        "text": "PAYMENT METHOD\n\n💡 After payment, please send me a proof!",
+                        "text": "PAYMENT METHOD\n\n💡 After payment, TEXT ME 'XX' ",
                         "reply_markup": keyboard
                     },
                     timeout=10
@@ -209,3 +209,4 @@ def main():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
