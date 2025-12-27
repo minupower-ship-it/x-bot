@@ -33,7 +33,6 @@ Welcome to Private Collection
 ★ INSTANT ACCESS ★
 
 ──────────────────────────────
-
 """
 
 ADMIN_ID = 5619516265
@@ -42,55 +41,57 @@ CRYPTO_QR = "https://files.catbox.moe/fkxh5l.png"
 CRYPTO_ADDRESS = "TERhALhVLZRqnS3mZGhE1XgxyLnKHfgBLi"
 
 # ===== Render Postgres 연결 =====
-DATABASE_URL = os.environ["DATABASE_URL"]
-
-up.uses_netloc.append("postgres")
-url = up.urlparse(DATABASE_URL)
-
-conn = psycopg2.connect(
-    dbname=url.path[1:],
-    user=url.username,
-    password=url.password,
-    host=url.hostname,
-    port=url.port
-)
-conn.autocommit = True
+DATABASE_URL = os.environ.get("DATABASE_URL")
+conn = None
+if DATABASE_URL:
+    up.uses_netloc.append("postgres")
+    url = up.urlparse(DATABASE_URL)
+    conn = psycopg2.connect(
+        dbname=url.path[1:],
+        user=url.username,
+        password=url.password,
+        host=url.hostname,
+        port=url.port
+    )
+    conn.autocommit = True
 
 def save_user(chat_id):
+    if not conn:
+        return
     with conn.cursor() as cur:
-        cur.execute(
-            """
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 chat_id BIGINT PRIMARY KEY
             )
-            """)
-        cur.execute(
-            """
+        """)
+        cur.execute("""
             INSERT INTO users (chat_id)
             VALUES (%s)
             ON CONFLICT (chat_id) DO NOTHING
-            """,
-            (chat_id,)
-        )
+        """, (chat_id,))
 
 def get_user_count():
+    if not conn:
+        return 0
     with conn.cursor() as cur:
         cur.execute("SELECT COUNT(*) FROM users")
         return cur.fetchone()[0]
 
 # ===== Webhook =====
-@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET", "POST", "HEAD"])
 def main():
-    if request.method == "GET":
+    if request.method in ["GET", "HEAD"]:
         return "Bot is running"
 
-    update = request.get_json()
+    update = request.get_json(force=True, silent=True)
+    print("UPDATE:", update)  # 🔥 디버그용
+
     if not update:
         return "ok"
 
     message = update.get("message")
     callback_query = update.get("callback_query")
-    
+
     # ===== 일반 메시지 처리 =====
     if message:
         chat_id = message["chat"]["id"]
@@ -99,12 +100,14 @@ def main():
         if text == "/start":
             save_user(chat_id)
 
+            # 영상 전송
             requests.post(f"{API_URL}/sendVideo", json={
                 "chat_id": chat_id,
                 "video": VIDEO_URL,
                 "caption": CAPTION
             })
 
+            # 결제 버튼 전송
             keyboard = {
                 "inline_keyboard": [
                     [{"text": "💸 PayPal", "url": "https://www.paypal.com/paypalme/minwookim384/20usd"}],
@@ -137,6 +140,11 @@ def main():
     elif callback_query:
         chat_id = callback_query["from"]["id"]
         data = callback_query["data"]
+
+        # 반드시 callback 응답
+        requests.post(f"{API_URL}/answerCallbackQuery", json={
+            "callback_query_id": callback_query["id"]
+        })
 
         if data == "crypto":
             # QR 코드 이미지와 지갑 주소 전송
