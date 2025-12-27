@@ -56,109 +56,154 @@ conn = psycopg2.connect(
 )
 conn.autocommit = True
 
+
 def save_user(chat_id):
     with conn.cursor() as cur:
-        cur.execute(
-            """
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 chat_id BIGINT PRIMARY KEY
             )
-            """)
-        cur.execute(
-            """
+        """)
+        cur.execute("""
             INSERT INTO users (chat_id)
             VALUES (%s)
             ON CONFLICT (chat_id) DO NOTHING
-            """,
-            (chat_id,)
-        )
+        """, (chat_id,))
+
 
 def get_user_count():
     with conn.cursor() as cur:
         cur.execute("SELECT COUNT(*) FROM users")
         return cur.fetchone()[0]
 
+
 # ===== Webhook =====
-@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET", "POST", "HEAD"])
 def main():
+    if request.method == "HEAD":
+        return "", 200
+
     if request.method == "GET":
         return "Bot is running"
 
     update = request.get_json()
+    print("UPDATE:", update)
+
     if not update:
         return "ok"
 
-    message = update.get("message")
+    message = update.get("message") or update.get("edited_message")
     callback_query = update.get("callback_query")
-    
+
     # ===== 일반 메시지 처리 =====
     if message:
         chat_id = message["chat"]["id"]
         text = message.get("text", "")
 
+        print("MESSAGE:", chat_id, text)
+
         if text == "/start":
             save_user(chat_id)
 
-            requests.post(f"{API_URL}/sendVideo", json={
-                "chat_id": chat_id,
-                "video": VIDEO_URL,
-                "caption": CAPTION
-            })
+            try:
+                res = requests.post(
+                    f"{API_URL}/sendVideo",
+                    json={
+                        "chat_id": chat_id,
+                        "video": VIDEO_URL,
+                        "caption": CAPTION
+                    },
+                    timeout=10
+                )
+                print("sendVideo:", res.status_code, res.text)
 
-            keyboard = {
-                "inline_keyboard": [
-                    [{"text": "💸 PayPal", "url": "https://www.paypal.com/paypalme/minwookim384/20usd"}],
-                    [{"text": "💳 Stripe", "url": "https://buy.stripe.com/bJe8wR1oO1nq3sN7Y41ck00"}],
-                    [{"text": "🪙 CRYPTO USDT(TRON)", "callback_data": "crypto"}],
-                    [{"text": "❓ Proof here", "url": "https://t.me/MBRYPIE"}]
-                ]
-            }
+                keyboard = {
+                    "inline_keyboard": [
+                        [{"text": "💸 PayPal", "url": "https://www.paypal.com/paypalme/minwookim384/20usd"}],
+                        [{"text": "💳 Stripe", "url": "https://buy.stripe.com/bJe8wR1oO1nq3sN7Y41ck00"}],
+                        [{"text": "🪙 CRYPTO USDT(TRON)", "callback_data": "crypto"}],
+                        [{"text": "❓ Proof here", "url": "https://t.me/MBRYPIE"}]
+                    ]
+                }
 
-            requests.post(f"{API_URL}/sendMessage", json={
-                "chat_id": chat_id,
-                "text": "PAYMENT METHOD\n\n💡 After payment, please send me a proof!",
-                "reply_markup": keyboard
-            })
+                res = requests.post(
+                    f"{API_URL}/sendMessage",
+                    json={
+                        "chat_id": chat_id,
+                        "text": "PAYMENT METHOD\n\n💡 After payment, please send me a proof!",
+                        "reply_markup": keyboard
+                    },
+                    timeout=10
+                )
+                print("sendMessage:", res.status_code, res.text)
+
+            except Exception as e:
+                print("ERROR sending /start messages:", e)
 
         elif text == "/users":
             if chat_id == ADMIN_ID:
                 count = get_user_count()
-                requests.post(f"{API_URL}/sendMessage", json={
-                    "chat_id": chat_id,
-                    "text": f"👥 총 유입 인원 수: {count}명"
-                })
+                res = requests.post(
+                    f"{API_URL}/sendMessage",
+                    json={
+                        "chat_id": chat_id,
+                        "text": f"👥 총 유입 인원 수: {count}명"
+                    },
+                    timeout=10
+                )
+                print("users cmd:", res.status_code, res.text)
             else:
-                requests.post(f"{API_URL}/sendMessage", json={
-                    "chat_id": chat_id,
-                    "text": "❌ 관리자만 사용할 수 있습니다."
-                })
+                requests.post(
+                    f"{API_URL}/sendMessage",
+                    json={
+                        "chat_id": chat_id,
+                        "text": "❌ 관리자만 사용할 수 있습니다."
+                    },
+                    timeout=10
+                )
 
     # ===== 버튼 클릭 처리 =====
     elif callback_query:
         chat_id = callback_query["from"]["id"]
         data = callback_query["data"]
 
-        if data == "crypto":
-            # QR 코드 이미지와 지갑 주소 전송
-            requests.post(f"{API_URL}/sendPhoto", json={
-                "chat_id": chat_id,
-                "photo": CRYPTO_QR,
-                "caption": f"💡 CRYPTO USDT(TRON) Payment\n\nWallet Address:\n{CRYPTO_ADDRESS}"
-            })
+        print("CALLBACK:", chat_id, data)
 
-            # Proof Here 버튼 다시 전송
-            proof_keyboard = {
-                "inline_keyboard": [
-                    [{"text": "❓ Text here", "url": "https://t.me/MBRYPIE"}]
-                ]
-            }
-            requests.post(f"{API_URL}/sendMessage", json={
-                "chat_id": chat_id,
-                "text": "💡 After payment, please text me XX",
-                "reply_markup": proof_keyboard
-            })
+        if data == "crypto":
+            try:
+                res = requests.post(
+                    f"{API_URL}/sendPhoto",
+                    json={
+                        "chat_id": chat_id,
+                        "photo": CRYPTO_QR,
+                        "caption": f"💡 CRYPTO USDT(TRON) Payment\n\nWallet Address:\n{CRYPTO_ADDRESS}"
+                    },
+                    timeout=10
+                )
+                print("sendPhoto:", res.status_code, res.text)
+
+                proof_keyboard = {
+                    "inline_keyboard": [
+                        [{"text": "❓ Text here", "url": "https://t.me/MBRYPIE"}]
+                    ]
+                }
+
+                res = requests.post(
+                    f"{API_URL}/sendMessage",
+                    json={
+                        "chat_id": chat_id,
+                        "text": "💡 After payment, please text me XX",
+                        "reply_markup": proof_keyboard
+                    },
+                    timeout=10
+                )
+                print("send proof msg:", res.status_code, res.text)
+
+            except Exception as e:
+                print("ERROR sending crypto info:", e)
 
     return "ok"
+
 
 # ===== Render 실행 =====
 if __name__ == "__main__":
