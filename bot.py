@@ -28,7 +28,7 @@ Welcome to Private Collection
 
 ──────────────────────────────
 
-★ Price: $20
+★ Price: $21
 
 ★ INSTANT ACCESS ★
 
@@ -119,7 +119,7 @@ def main():
 
                 keyboard = {
                     "inline_keyboard": [
-                        [{"text": "💸 PayPal", "url": "https://www.paypal.com/paypalme/minwookim384/20usd"}],
+                        [{"text": "💸 PayPal", "url": "https://www.paypal.com/paypalme/minwookim384/21usd"}],
                         [{"text": "💳 Stripe", "url": "https://buy.stripe.com/bJe8wR1oO1nq3sN7Y41ck00"}],
                         [{"text": "🪙 CRYPTO USDT(TRON)", "callback_data": "crypto"}],
                         [{"text": "❓ Proof here", "url": "https://t.me/MBRYPIE"}]
@@ -209,4 +209,5 @@ def main():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
 
